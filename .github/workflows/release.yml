@@ -1,0 +1,175 @@
+name: Release
+
+# On every push to main: run CI, build all 7 native targets, then let
+# semantic-release decide the version from the conventional commits, publish the
+# fat package to npm, and cut a GitHub release. No-op if no releasable commits.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Reuse the full PR test suite as a release gate.
+  test:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: ${{ matrix.name }}
+    needs: test
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── macOS: build both arches, lipo to universal ───────────────────
+          - name: darwin-universal
+            os: macos-latest
+            build: |
+              rustup target add x86_64-apple-darwin
+              yarn napi build --platform --release --esm --output-dir . --target aarch64-apple-darwin --js binding.js --dts binding.d.ts
+              yarn napi build --platform --release --esm --output-dir . --target x86_64-apple-darwin  --js binding.js --dts binding.d.ts
+              yarn napi universalize --output-dir .
+            artifact: index.darwin-universal.node
+
+          # ── Windows ───────────────────────────────────────────────────────
+          - name: win32-x64
+            os: windows-latest
+            build: yarn napi build --platform --release --esm --output-dir . --target x86_64-pc-windows-msvc --js binding.js --dts binding.d.ts
+            artifact: index.win32-x64-msvc.node
+
+          - name: win32-arm64
+            os: windows-latest
+            build: |
+              rustup target add aarch64-pc-windows-msvc
+              yarn napi build --platform --release --esm --output-dir . --target aarch64-pc-windows-msvc --js binding.js --dts binding.d.ts
+            artifact: index.win32-arm64-msvc.node
+
+          # ── Linux glibc (native runners for each arch) ────────────────────
+          - name: linux-x64-gnu
+            os: ubuntu-latest
+            build: yarn napi build --platform --release --esm --output-dir . --target x86_64-unknown-linux-gnu --js binding.js --dts binding.d.ts
+            artifact: index.linux-x64-gnu.node
+
+          - name: linux-arm64-gnu
+            os: ubuntu-24.04-arm
+            build: yarn napi build --platform --release --esm --output-dir . --target aarch64-unknown-linux-gnu --js binding.js --dts binding.d.ts
+            artifact: index.linux-arm64-gnu.node
+
+          # ── Linux musl (Alpine container on native-arch runner) ───────────
+          - name: linux-x64-musl
+            os: ubuntu-latest
+            container: node:22-alpine
+            setup: apk add --no-cache bash curl build-base cmake python3 git
+            build: |
+              rustup target add x86_64-unknown-linux-musl
+              yarn napi build --platform --release --esm --output-dir . --target x86_64-unknown-linux-musl --js binding.js --dts binding.d.ts
+            artifact: index.linux-x64-musl.node
+
+          - name: linux-arm64-musl
+            os: ubuntu-24.04-arm
+            container: node:22-alpine
+            setup: apk add --no-cache bash curl build-base cmake python3 git
+            build: |
+              rustup target add aarch64-unknown-linux-musl
+              yarn napi build --platform --release --esm --output-dir . --target aarch64-unknown-linux-musl --js binding.js --dts binding.d.ts
+            artifact: index.linux-arm64-musl.node
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Container setup
+        if: matrix.setup
+        run: ${{ matrix.setup }}
+
+      - uses: actions/setup-node@v4
+        if: ${{ !matrix.container }}
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: Swatinem/rust-cache@bc2d2e71bd35c5549942babaa51a89c586b981d1 # v2.8.1
+        with:
+          key: ${{ matrix.name }}
+
+      - run: yarn install --immutable
+
+      - name: Build
+        shell: bash
+        run: ${{ matrix.build }}
+
+      - name: Strip binding.js package fallbacks
+        run: node scripts/strip-binding-fallbacks.js
+
+      - name: Smoke test (native targets only)
+        if: ${{ !contains(matrix.name, 'arm64') || contains(matrix.os, 'arm') || matrix.os == 'macos-latest' }}
+        run: yarn test
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
+
+      # binding.js / binding.d.ts are gitignored; ship one canonical copy from
+      # this job for the release step to pick up.
+      - uses: actions/upload-artifact@v4
+        if: matrix.name == 'linux-x64-gnu'
+        with:
+          name: binding
+          path: |
+            binding.js
+            binding.d.ts
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+    environment: npm-trusted-publisher
+    permissions:
+      id-token: write # for publishing releases (OIDC: secret-service + npm trusted publishing)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Install
+        run: yarn install --immutable
+
+      # Stage the fat package's prebuilt binaries before semantic-release packs.
+      - name: Collect prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten into package root
+        run: |
+          mv artifacts/*/index.*.node .
+          mv artifacts/binding/binding.js artifacts/binding/binding.d.ts .
+          ls -la index.*.node binding.js binding.d.ts
+      - name: Verify all targets present
+        run: node scripts/check-prebuilds.js
+
+      - name: Get GitHub app token
+        id: secret-service
+        uses: electron/secret-service-action@3476425e8b30555aac15b1b7096938e254b0e155 # v1.0.0
+      - name: Run semantic release
+        uses: electron/semantic-trusted-release@03517840010ba30fe5264f4875f4cff066b658d1 # v1.1.0
+        with:
+          github-token: ${{ fromJSON(steps.secret-service.outputs.secrets).GITHUB_TOKEN }}
