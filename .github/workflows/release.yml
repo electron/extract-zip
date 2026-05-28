@@ -7,7 +7,6 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions: {}
 
@@ -86,13 +85,13 @@ jobs:
             artifact: index.linux-arm64-musl.node
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Container setup
         if: matrix.setup
         run: ${{ matrix.setup }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: ${{ !matrix.container }}
         with:
           node-version-file: .nvmrc
@@ -116,7 +115,7 @@ jobs:
         if: ${{ !contains(matrix.name, 'arm64') || contains(matrix.os, 'arm') || matrix.os == 'macos-latest' }}
         run: yarn test
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.artifact }}
@@ -124,7 +123,7 @@ jobs:
 
       # binding.js / binding.d.ts are gitignored; ship one canonical copy from
       # this job for the release step to pick up.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: matrix.name == 'linux-x64-gnu'
         with:
           name: binding
@@ -155,7 +154,7 @@ jobs:
 
       # Stage the fat package's prebuilt binaries before semantic-release packs.
       - name: Collect prebuilds
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artifacts
       - name: Flatten into package root
