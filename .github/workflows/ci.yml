@@ -131,6 +131,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: yarn
+          package-manager-cache: ${{ github.ref != 'refs/heads/main' }}
 
       # Rust (stable) is preinstalled on the hosted runner images; the alpine
       # docker builds install their own pinned rustup in "Build (docker)".
