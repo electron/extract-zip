@@ -56,6 +56,9 @@
     "provenance": true,
     "access": "public"
   },
+  "repository": {
+    "url": "https://github.com/electron/extract-zip"
+  },
   "devDependencies": {
     "@napi-rs/cli": "^3.6.2",
     "extract-zip": "2.0.1",
