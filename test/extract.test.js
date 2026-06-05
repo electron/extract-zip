@@ -27,6 +27,22 @@ function freshOut() {
 const read = (p) => fs.readFileSync(p, 'utf8');
 const mode = (p) => fs.statSync(p).mode & 0o777;
 
+// Windows only allows symlink creation with SeCreateSymbolicLinkPrivilege
+// (elevation or Developer Mode); without it the extractor skips links by
+// design, so link-resolution tests are only meaningful when it's held.
+function canSymlink() {
+  if (isUnix) return true;
+  const probe = path.join(os.tmpdir(), `extract-zip-symlink-probe-${process.pid}`);
+  try {
+    fs.rmSync(probe, { force: true });
+    fs.symlinkSync('x', probe, 'file');
+    fs.rmSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 
 describe('correctness', () => {
@@ -233,6 +249,23 @@ describe('symlinks', { skip: !isUnix }, () => {
     assert.equal(read(path.join(dir, 'hello.txt')), 'hello world\n');
     assert.equal(read(outside), 'ORIGINAL'); // not clobbered through the link
     assert.ok(!fs.lstatSync(path.join(dir, 'hello.txt')).isSymbolicLink());
+  });
+});
+
+// Unlike the block above, this runs on Windows too (when the privilege is
+// held) — it's the platform where link type and separator handling can break.
+describe('symlinks (all platforms)', { skip: !canSymlink() }, () => {
+  // Regression for electron/fuses on Windows: the darwin Electron zip's
+  // framework links must come out traversable — correct link type for the
+  // directory link, and no raw '/' left in the stored targets.
+  test('framework-style link chain resolves through both hops', async () => {
+    const dir = freshOut();
+    await extract(F.framework, { dir });
+    const fw = path.join(dir, 'Test.framework');
+    assert.ok(fs.lstatSync(path.join(fw, 'Versions', 'Current')).isSymbolicLink());
+    assert.ok(fs.statSync(path.join(fw, 'Versions', 'Current')).isDirectory());
+    assert.ok(fs.lstatSync(path.join(fw, 'Test')).isSymbolicLink());
+    assert.equal(read(path.join(fw, 'Test')), 'framework binary\n');
   });
 });
 
