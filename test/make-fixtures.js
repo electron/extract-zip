@@ -218,6 +218,17 @@ fixture('symlink-chain', (f) =>
 fixture('symlink-self', (f) =>
   fs.writeFileSync(f, rawZip([{ name: 'loop', data: 'loop', mode: S_IFLNK | 0o777 }])),
 );
+// macOS .framework bundles reach the binary through a file link that crosses
+// a directory link (`Test -> Versions/Current/Test`, `Current -> A`); this is
+// the shape electron/fuses opens on every OS, including Windows. The links
+// come before the file so creating `Test` exercises the pending-link map.
+fixture('framework', (f) =>
+  fs.writeFileSync(f, rawZip([
+    { name: 'Test.framework/Test', data: 'Versions/Current/Test', mode: S_IFLNK | 0o755 },
+    { name: 'Test.framework/Versions/Current', data: 'A', mode: S_IFLNK | 0o755 },
+    { name: 'Test.framework/Versions/A/Test', data: 'framework binary\n' },
+  ])),
+);
 
 fixture('liar', (f) =>
   // Declares 100 bytes; actually inflates to 2 MB → LimitedWriter must trip.

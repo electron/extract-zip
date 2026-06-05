@@ -21,6 +21,7 @@ const MAX_WORKERS: usize = 8;
 const WRITE_BUF_MAX: u64 = 256 * 1024;
 const WRITE_BUF_MIN: u64 = 8 * 1024;
 const MAX_SYMLINK_TARGET: u64 = 4096;
+const MAX_SYMLINK_HOPS: u32 = 40;
 /// Permission bits we honour from the archive — setuid/setgid/sticky are
 /// deliberately stripped so a hostile zip can't plant a setuid binary.
 const MODE_MASK: u32 = 0o777;
@@ -472,7 +473,7 @@ fn create_symlink(
     // symlink components, and nothing since has been able to replace a real
     // directory with a symlink, so `parent` is its own canonical path.
     let parent = s.out_path.parent().unwrap_or(dest_canon);
-    verify_symlink_target(parent, &s.target, dest_canon, link_map).map_err(|why| {
+    let resolved = verify_symlink_target(parent, &s.target, dest_canon, link_map).map_err(|why| {
         zerr(format!(
             "refusing to create symlink '{}' -> '{}': {why}",
             s.out_path.display(),
@@ -496,7 +497,7 @@ fn create_symlink(
             ))
         })?;
     }
-    match make_symlink(&s.target, &s.out_path) {
+    match make_symlink(&s.target, &s.out_path, &resolved, link_map) {
         Ok(()) => Ok(()),
         // Windows without symlink privilege: skip rather than fail the extract.
         #[cfg(windows)]
@@ -514,14 +515,14 @@ fn create_symlink(
 /// `Versions/Current/Libraries` works when `Current → A`), with each hop
 /// subject to the same rules: relative only, never ascend above `dest_canon`,
 /// hop count capped. A symlink as the *final* component is left unresolved.
+/// On success, returns the resolved path the link will point at.
 fn verify_symlink_target(
     parent: &Path,
     target: &str,
     dest_canon: &Path,
     link_map: &HashMap<String, &str>,
-) -> std::result::Result<(), &'static str> {
+) -> std::result::Result<PathBuf, &'static str> {
     use std::ffi::OsString;
-    const MAX_HOPS: u32 = 40;
     const PARENT: &str = "..";
 
     let target = Path::new(target);
@@ -576,7 +577,7 @@ fn verify_symlink_target(
                 break; // final component; its own target is verified separately
             }
             hops += 1;
-            if hops > MAX_HOPS {
+            if hops > MAX_SYMLINK_HOPS {
                 return Err("too many levels of symlinks in target");
             }
             cur.pop();
@@ -587,21 +588,72 @@ fn verify_symlink_target(
     // security boundary — keep the check unconditional so a future logic slip
     // in the hop resolver fails closed.
     if cur.starts_with(dest_canon) {
-        Ok(())
+        Ok(cur)
     } else {
         Err("target escapes destination")
     }
 }
 
 #[cfg(unix)]
-fn make_symlink(target: &str, link: &Path) -> io::Result<()> {
+fn make_symlink(
+    target: &str,
+    link: &Path,
+    _resolved: &Path,
+    _link_map: &HashMap<String, &str>,
+) -> io::Result<()> {
     std::os::unix::fs::symlink(target, link)
 }
 
 #[cfg(windows)]
-fn make_symlink(target: &str, link: &Path) -> io::Result<()> {
-    std::os::windows::fs::symlink_file(target, link)
-        .or_else(|_| std::os::windows::fs::symlink_dir(target, link))
+fn make_symlink(
+    target: &str,
+    link: &Path,
+    resolved: &Path,
+    link_map: &HashMap<String, &str>,
+) -> io::Result<()> {
+    // NTFS reparse points don't treat '/' as a separator, so the archive's
+    // POSIX-style target must be rewritten or the link never resolves (Node's
+    // fs.symlink does the same rewrite in preprocessSymlinkDestination).
+    let target = target.replace('/', "\\");
+    // Windows symlinks are typed, and a file-type link to a directory is
+    // created without error but cannot be traversed — so the type must be
+    // decided up front, not by trying one and falling back.
+    if resolved_target_is_dir(resolved, link_map) {
+        std::os::windows::fs::symlink_dir(&target, link)
+    } else {
+        std::os::windows::fs::symlink_file(&target, link)
+    }
+}
+
+/// Whether the verified resolved target is a directory, following any
+/// remaining symlink hops — pending links from this archive first (they may
+/// not be on disk yet), then the on-disk tree via `fs::metadata`. A target
+/// that resolves to nothing (dangling, loop, absolute hop) is treated as a
+/// file: worst case is an untraversable link, same as a dangling one.
+#[cfg(windows)]
+fn resolved_target_is_dir(resolved: &Path, link_map: &HashMap<String, &str>) -> bool {
+    let mut cur = resolved.to_path_buf();
+    for _ in 0..MAX_SYMLINK_HOPS {
+        let Some(t) = link_map.get(&fold_key(&cur)) else {
+            return fs::metadata(&cur).is_ok_and(|m| m.is_dir());
+        };
+        let mut next = match cur.parent() {
+            Some(p) => p.to_path_buf(),
+            None => return false,
+        };
+        for c in Path::new(t).components() {
+            match c {
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    next.pop();
+                }
+                Component::Normal(n) => next.push(n),
+                Component::Prefix(_) | Component::RootDir => return false,
+            }
+        }
+        cur = next;
+    }
+    false
 }
 
 #[cfg(unix)]
@@ -715,10 +767,14 @@ mod tests {
             verify_symlink_target(dest, "deep/BACK/deep/Back/../../x", dest, &map),
             Err("target escapes destination")
         );
-        // Legitimate framework-style chain stays inside.
+        // Legitimate framework-style chain stays inside, and the returned
+        // resolved path has the `Current → A` hop applied.
         let cur = dest.join("V").join("Current");
         let map = lmap(&[(&cur, "A")]);
-        assert!(verify_symlink_target(dest, "V/Current/Libraries", dest, &map).is_ok());
+        assert_eq!(
+            verify_symlink_target(dest, "V/Current/Libraries", dest, &map),
+            Ok(dest.join("V").join("A").join("Libraries"))
+        );
         // Self-loop hits the hop cap, doesn't hang.
         let l = dest.join("l");
         let map = lmap(&[(&l, "l")]);
