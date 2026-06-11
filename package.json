@@ -62,7 +62,7 @@
     "url": "https://github.com/electron/extract-zip"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.6.2",
+    "@napi-rs/cli": "patch:@napi-rs/cli@npm%3A3.6.2#~/.yarn/patches/@napi-rs-cli-npm-3.6.2-b710c59d43.patch",
     "extract-zip": "2.0.1",
     "yazl": "3.3.1"
   }
