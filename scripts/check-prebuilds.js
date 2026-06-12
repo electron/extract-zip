@@ -15,6 +15,8 @@ const EXPECTED = {
   'aarch64-unknown-linux-gnu': 'index.linux-arm64-gnu.node',
   'x86_64-unknown-linux-musl': 'index.linux-x64-musl.node',
   'aarch64-unknown-linux-musl': 'index.linux-arm64-musl.node',
+  'i686-unknown-linux-gnu': 'index.linux-ia32-gnu.node',
+  'armv7-unknown-linux-gnueabihf': 'index.linux-arm-gnueabihf.node',
 };
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');

@@ -9,7 +9,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@electron-internal/extract-zip@workspace:."
   dependencies:
-    "@napi-rs/cli": "npm:^3.6.2"
+    "@napi-rs/cli": "patch:@napi-rs/cli@npm%3A3.6.2#~/.yarn/patches/@napi-rs-cli-npm-3.6.2-b710c59d43.patch"
     extract-zip: "npm:2.0.1"
     yazl: "npm:3.3.1"
   languageName: unknown
@@ -256,7 +256,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@napi-rs/cli@npm:^3.6.2":
+"@napi-rs/cli@npm:3.6.2":
   version: 3.6.2
   resolution: "@napi-rs/cli@npm:3.6.2"
   dependencies:
@@ -281,6 +281,34 @@ __metadata:
     napi: dist/cli.js
     napi-raw: cli.mjs
   checksum: 10c0/3164711ed904c45247f9589c9cdf62f843c30e1b1b03bc770b9bb4d7c76bd134c42266ba85bc11d50f77df97eea56594a8151a749f2bca014c2b45cbfcf96a41
+  languageName: node
+  linkType: hard
+
+"@napi-rs/cli@patch:@napi-rs/cli@npm%3A3.6.2#~/.yarn/patches/@napi-rs-cli-npm-3.6.2-b710c59d43.patch":
+  version: 3.6.2
+  resolution: "@napi-rs/cli@patch:@napi-rs/cli@npm%3A3.6.2#~/.yarn/patches/@napi-rs-cli-npm-3.6.2-b710c59d43.patch::version=3.6.2&hash=058488"
+  dependencies:
+    "@inquirer/prompts": "npm:^8.0.0"
+    "@napi-rs/cross-toolchain": "npm:^1.0.3"
+    "@napi-rs/wasm-tools": "npm:^1.0.1"
+    "@octokit/rest": "npm:^22.0.1"
+    clipanion: "npm:^4.0.0-rc.4"
+    colorette: "npm:^2.0.20"
+    emnapi: "npm:^1.9.1"
+    es-toolkit: "npm:^1.41.0"
+    js-yaml: "npm:^4.1.0"
+    obug: "npm:^2.0.0"
+    semver: "npm:^7.7.3"
+    typanion: "npm:^3.14.0"
+  peerDependencies:
+    "@emnapi/runtime": ^1.7.1
+  peerDependenciesMeta:
+    "@emnapi/runtime":
+      optional: true
+  bin:
+    napi: dist/cli.js
+    napi-raw: cli.mjs
+  checksum: 10c0/73681d26ce5100769c231f12494ef4af673455e073b72507d0404a8e927342dcfd49df8e612dc517e263add37acab4832203fd6965825e7e871ea93796f9e003
   languageName: node
   linkType: hard
 

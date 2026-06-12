@@ -1,0 +1,39 @@
+diff --git a/dist/cli.js b/dist/cli.js
+index 5787d8d0398b48987f9e59a628770259cf9c830c..260f2a7f742c3a14fbabb7b67c6121311a99a703 100755
+--- a/dist/cli.js
++++ b/dist/cli.js
+@@ -802,6 +802,8 @@ function requireNative() {
+       ${requireTuple("linux-ppc64-gnu")}
+     } else if (process.arch === 's390x') {
+       ${requireTuple("linux-s390x-gnu")}
++    } else if (process.arch === 'ia32') {
++      ${requireTuple("linux-ia32-gnu")}
+     } else {
+       loadErrors.push(new Error(\`Unsupported architecture on Linux: \${process.arch}\`))
+     }
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 8f467564ab9b95d009c562cb9a78aa513b6d2bb2..291d75aca1095ce67e80ced2de16b5cd59c161c0 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -827,6 +827,8 @@ function requireNative() {
+       ${requireTuple("linux-ppc64-gnu")}
+     } else if (process.arch === 's390x') {
+       ${requireTuple("linux-s390x-gnu")}
++    } else if (process.arch === 'ia32') {
++      ${requireTuple("linux-ia32-gnu")}
+     } else {
+       loadErrors.push(new Error(\`Unsupported architecture on Linux: \${process.arch}\`))
+     }
+diff --git a/dist/index.js b/dist/index.js
+index e2bfc6368247a58ea3a712bb156e15b440bf139a..f74f13e7189be927cedbd4fd5ba9dd4ca335e6f9 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -801,6 +801,8 @@ function requireNative() {
+       ${requireTuple("linux-ppc64-gnu")}
+     } else if (process.arch === 's390x') {
+       ${requireTuple("linux-s390x-gnu")}
++    } else if (process.arch === 'ia32') {
++      ${requireTuple("linux-ia32-gnu")}
+     } else {
+       loadErrors.push(new Error(\`Unsupported architecture on Linux: \${process.arch}\`))
+     }
