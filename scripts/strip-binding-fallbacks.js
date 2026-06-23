@@ -69,10 +69,14 @@ for (const arch of MUSL_FALLBACK_ARCHES) {
     );
   });
   if (src === before) {
-    console.error(
-      `strip-binding-fallbacks: could not inject musl fallback for ${arch} — generator output changed?`,
+    // Per-target musl builds (`napi build --target *-musl`) emit a loader with
+    // no `linux-${arch}-gnu` require block, so there is nothing to graft the
+    // musl fallback onto. That's fine — the fallback is only meaningful when a
+    // gnu block exists — so skip this arch instead of failing the build.
+    console.log(
+      `strip-binding-fallbacks: no linux-${arch}-gnu block found — skipping musl fallback for ${arch}`,
     );
-    process.exit(1);
+    continue;
   }
   if (!src.includes(sentinel)) {
     console.error(
