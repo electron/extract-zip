@@ -82,15 +82,22 @@ jobs:
               yarn napi build --platform --release --esm --output-dir . --target aarch64-pc-windows-msvc --js binding.js --dts binding.d.ts
             artifact: index.win32-arm64-msvc.node
 
-          # ── Linux glibc (native runners for each arch) ────────────────────
+          # ── Linux glibc ───────────────────────────────────────────────────
+          # Built with --use-napi-cross so the prebuilds link against the
+          # @napi-rs/cross-toolchain sysroot (glibc 2.17) instead of the host
+          # runner's glibc. A plain `napi build` on ubuntu-latest produced
+          # binaries that required GLIBC_2.34, which breaks installs on
+          # Electron's documented support floor (Debian 10 / glibc 2.28) and
+          # anything older than Ubuntu 22.04. The same flag already builds the
+          # arm-gnueabihf prebuild (and cross-compiles zlib-ng) below.
           - name: linux-x64-gnu
             os: ubuntu-latest
-            build: yarn napi build --platform --release --esm --output-dir . --target x86_64-unknown-linux-gnu --js binding.js --dts binding.d.ts
+            build: yarn napi build --platform --release --esm --output-dir . --target x86_64-unknown-linux-gnu --use-napi-cross --js binding.js --dts binding.d.ts
             artifact: index.linux-x64-gnu.node
 
           - name: linux-arm64-gnu
             os: ubuntu-24.04-arm
-            build: yarn napi build --platform --release --esm --output-dir . --target aarch64-unknown-linux-gnu --js binding.js --dts binding.d.ts
+            build: yarn napi build --platform --release --esm --output-dir . --target aarch64-unknown-linux-gnu --use-napi-cross --js binding.js --dts binding.d.ts
             artifact: index.linux-arm64-gnu.node
 
           # ── Linux musl (Alpine via docker run on native-arch runners) ─────
@@ -217,3 +224,76 @@ jobs:
             binding.js
             binding.d.ts
           if-no-files-found: error
+
+  # ── glibc floor enforcement (static, both gnu arches, no QEMU) ─────────
+  # Electron's documented Linux support floor is Debian 10 (glibc 2.28). A
+  # plain `napi build` on ubuntu-latest links against the runner's much newer
+  # glibc and emits versioned symbol references like GLIBC_2.34, which make
+  # the prebuild fail to load on that floor. objdump -T lists every versioned
+  # symbol the .node imports; this job fails if any required GLIBC_2.xx symbol
+  # is newer than 2.28, for both the x64 and arm64 gnu prebuilds, without
+  # needing to actually run the binary (so no emulation).
+  glibc-floor:
+    name: glibc floor (objdump)
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact: linux-x64-gnu
+            node: index.linux-x64-gnu.node
+          - artifact: linux-arm64-gnu
+            node: index.linux-arm64-gnu.node
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ matrix.artifact }}
+      - name: Check no GLIBC symbol newer than 2.28
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="${{ matrix.node }}"
+          echo "Inspecting versioned GLIBC symbols required by $file"
+          # All distinct GLIBC_x.y version tags the binary imports.
+          versions=$(objdump -T "$file" | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -u || true)
+          echo "Required GLIBC versions:"
+          echo "$versions"
+          floor_major=2
+          floor_minor=28
+          offending=""
+          while read -r v; do
+            [ -z "$v" ] && continue
+            ver=${v#GLIBC_}
+            major=${ver%%.*}
+            minor=${ver#*.}
+            if [ "$major" -gt "$floor_major" ] || { [ "$major" -eq "$floor_major" ] && [ "$minor" -gt "$floor_minor" ]; }; then
+              offending="$offending $v"
+            fi
+          done <<< "$versions"
+          if [ -n "$offending" ]; then
+            echo "::error::$file requires GLIBC versions newer than 2.28 (Debian 10 floor):$offending"
+            echo "Offending symbols:"
+            objdump -T "$file" | grep -E "GLIBC_($(echo "$offending" | tr ' ' '\n' | sed 's/GLIBC_//' | grep -v '^$' | paste -sd'|' -))" || true
+            exit 1
+          fi
+          echo "OK: $file imports no GLIBC symbol newer than 2.28"
+
+  # ── real load test on Electron's near-floor glibc (no emulation) ──────
+  # objdump proves which symbols are imported; this proves the prebuild
+  # actually loads on an old-glibc userland. node:22-bullseye-slim is Debian
+  # 11 (glibc 2.31); a require() of the x64 prebuild here throws with a
+  # "GLIBC_2.34 not found" dynamic-link error if the binary was built against
+  # too-new a glibc, reproducing the real install breakage.
+  validate-glibc:
+    name: validate-glibc (require in bullseye)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-x64-gnu
+      - name: require() the prebuild inside node:22-bullseye-slim
+        run: |
+          docker run --rm -v "$PWD:/build" -w /build node:22-bullseye-slim@sha256:4299d71f4953a7e8cf1d2b988160a7695fbdb8c8f8ef39b46a57ca769dd06dc1 \
+            node -e "require('./index.linux-x64-gnu.node'); console.log('loaded index.linux-x64-gnu.node on', process.report.getReport().header.glibcVersionRuntime)"
