@@ -295,5 +295,5 @@ jobs:
           name: linux-x64-gnu
       - name: require() the prebuild inside node:22-bullseye-slim
         run: |
-          docker run --rm -v "$PWD:/build" -w /build node:22-bullseye-slim \
+          docker run --rm -v "$PWD:/build" -w /build node:22-bullseye-slim@sha256:4299d71f4953a7e8cf1d2b988160a7695fbdb8c8f8ef39b46a57ca769dd06dc1 \
             node -e "require('./index.linux-x64-gnu.node'); console.log('loaded index.linux-x64-gnu.node on', process.report.getReport().header.glibcVersionRuntime)"
