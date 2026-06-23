@@ -286,7 +286,7 @@ __metadata:
 
 "@napi-rs/cli@patch:@napi-rs/cli@npm%3A3.6.2#~/.yarn/patches/@napi-rs-cli-npm-3.6.2-b710c59d43.patch":
   version: 3.6.2
-  resolution: "@napi-rs/cli@patch:@napi-rs/cli@npm%3A3.6.2#~/.yarn/patches/@napi-rs-cli-npm-3.6.2-b710c59d43.patch::version=3.6.2&hash=058488"
+  resolution: "@napi-rs/cli@patch:@napi-rs/cli@npm%3A3.6.2#~/.yarn/patches/@napi-rs-cli-npm-3.6.2-b710c59d43.patch::version=3.6.2&hash=f47b21"
   dependencies:
     "@inquirer/prompts": "npm:^8.0.0"
     "@napi-rs/cross-toolchain": "npm:^1.0.3"
@@ -308,7 +308,7 @@ __metadata:
   bin:
     napi: dist/cli.js
     napi-raw: cli.mjs
-  checksum: 10c0/73681d26ce5100769c231f12494ef4af673455e073b72507d0404a8e927342dcfd49df8e612dc517e263add37acab4832203fd6965825e7e871ea93796f9e003
+  checksum: 10c0/6085b03f54cf2fd80936852ca2e2aca94a9485d25175851a34f6e9fd7ceec6fb7f340ebd00ee76900c1c1e6cc43afd3edf8f24a1051462af694aca612050913f
   languageName: node
   linkType: hard
 
