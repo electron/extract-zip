@@ -82,15 +82,22 @@ jobs:
               yarn napi build --platform --release --esm --output-dir . --target aarch64-pc-windows-msvc --js binding.js --dts binding.d.ts
             artifact: index.win32-arm64-msvc.node
 
-          # ── Linux glibc (native runners for each arch) ────────────────────
+          # ── Linux glibc ───────────────────────────────────────────────────
+          # Built with --use-napi-cross so the prebuilds link against the
+          # @napi-rs/cross-toolchain sysroot (glibc 2.17) instead of the host
+          # runner's glibc. A plain `napi build` on ubuntu-latest produced
+          # binaries that required GLIBC_2.34, which breaks installs on
+          # Electron's documented support floor (Debian 10 / glibc 2.28) and
+          # anything older than Ubuntu 22.04. The same flag already builds the
+          # arm-gnueabihf prebuild (and cross-compiles zlib-ng) below.
           - name: linux-x64-gnu
             os: ubuntu-latest
-            build: yarn napi build --platform --release --esm --output-dir . --target x86_64-unknown-linux-gnu --js binding.js --dts binding.d.ts
+            build: yarn napi build --platform --release --esm --output-dir . --target x86_64-unknown-linux-gnu --use-napi-cross --js binding.js --dts binding.d.ts
             artifact: index.linux-x64-gnu.node
 
           - name: linux-arm64-gnu
             os: ubuntu-24.04-arm
-            build: yarn napi build --platform --release --esm --output-dir . --target aarch64-unknown-linux-gnu --js binding.js --dts binding.d.ts
+            build: yarn napi build --platform --release --esm --output-dir . --target aarch64-unknown-linux-gnu --use-napi-cross --js binding.js --dts binding.d.ts
             artifact: index.linux-arm64-gnu.node
 
           # ── Linux musl (Alpine via docker run on native-arch runners) ─────
