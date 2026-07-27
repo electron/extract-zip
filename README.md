@@ -40,15 +40,13 @@ consumer in the `electron` org uses them.
 
 ## Security
 
-Every entry path is verified to land inside `dir`:
+This package is hardened for extracting trusted Electron distribution archives,
+enforcing path containment against Zip Slip, symlink escapes, absolute paths, NUL
+injection, Windows reserved names, and zip bombs. Its threat model and the full
+list of containment guarantees are documented in [`SECURITY.md`](./SECURITY.md).
 
-- `..` traversal is rejected and absolute paths are stripped, via the `zip` crate's audited `enclosed_name()`.
-- Directories are created one component at a time without following symlinks; an entry whose path crosses a symlink is rejected.
-- Symlinks are created after all files. Each target is walked against the on-disk tree and the archive's own symlink set, with relative-only hops bounded by `dir` and a hop cap, so a chain resolving outside `dir` is rejected before any link is created.
-- NUL bytes and Windows reserved device names (`CON`, `AUX`, `COM1`, trailing space/dot) are rejected on every platform.
-- Symlink targets are capped at 4 KiB; per-file output is capped at `max(2 x declared size, 1 MB)` to catch entries that lie about their size.
-
-`test/security.test.js` exercises these escapes end-to-end with hand-crafted archives.
+Extracting untrusted or unverified archives is out of scope — see
+[`SECURITY.md`](./SECURITY.md) for details.
 
 ## Benchmarks
 
