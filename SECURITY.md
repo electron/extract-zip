@@ -5,7 +5,9 @@ to extract Electron's own distribution archives — for example the archives
 fetched and checksum-verified by [`@electron/get`](https://github.com/electron/get)
 — and is consumed only through Electron's own packages.
 
-It is **not** a general-purpose zip extractor. If you need one, use
+It is **not** a general-purpose zip extractor. If you need one, use a
+well-maintained general-purpose library such as
+[`adm-zip`](https://www.npmjs.com/package/adm-zip) or
 [`extract-zip`](https://github.com/max-mapper/extract-zip).
 
 ## Threat model / Scope
@@ -31,13 +33,21 @@ treated as vulnerabilities in this package.
 
 For in-scope archives, every entry path is verified to land inside `dir`:
 
-- `..` traversal is rejected and absolute paths are stripped, via the `zip` crate's audited `enclosed_name()`.
-- Directories are created one component at a time without following symlinks; an entry whose path crosses a symlink is rejected.
-- Symlinks are created after all files. Each target is walked against the on-disk tree and the archive's own symlink set, with relative-only hops bounded by `dir` and a hop cap, so a chain resolving outside `dir` is rejected before any link is created.
-- NUL bytes and Windows reserved device names (`CON`, `AUX`, `COM1`, trailing space/dot) are rejected on every platform.
-- Symlink targets are capped at 4 KiB; per-file output is capped at `max(2 x declared size, 1 MB)` to catch entries that lie about their size.
+- `..` traversal is rejected and absolute paths are stripped, via the `zip`
+  crate's audited `enclosed_name()`.
+- Directories are created one component at a time without following symlinks; an
+  entry whose path crosses a symlink is rejected.
+- Symlinks are created after all files. Each target is walked against the on-disk
+  tree and the archive's own symlink set, with relative-only hops bounded by
+  `dir` and a hop cap, so a chain resolving outside `dir` is rejected before any
+  link is created.
+- NUL bytes and Windows reserved device names (`CON`, `AUX`, `COM1`, trailing
+  space/dot) are rejected on every platform.
+- Symlink targets are capped at 4 KiB; per-file output is capped at `max(2 x
+  declared size, 1 MB)` to catch entries that lie about their size.
 
-`test/security.test.js` exercises these escapes end-to-end with hand-crafted archives.
+[`test/security.test.js`](./test/security.test.js) exercises these escapes
+end-to-end with hand-crafted archives.
 
 ## Reporting a vulnerability
 
