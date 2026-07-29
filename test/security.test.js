@@ -280,6 +280,29 @@ describe('symlink chain escape', { skip: !isUnix }, () => {
     );
   });
 
+  test('pre-existing on-disk symlink at final target component cannot escape', async () => {
+    // The archive's only entry is `archive-link -> preexisting`. `preexisting`
+    // is NOT in the archive — it already exists on disk in `dest`, pointing to
+    // `../outside` (outside `dest`). A pre-existing on-disk symlink never gets
+    // its own verify pass, so the final-component shortcut must not apply here:
+    // the verifier has to follow it and reject the escape.
+    const root = scratch();
+    const dest = path.join(root, 'dest');
+    fs.mkdirSync(dest, { recursive: true });
+    const outside = path.join(root, 'outside');
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(outside, 'sentinel'), 'SECRET\n');
+    fs.symlinkSync('../outside', path.join(dest, 'preexisting'));
+
+    const zip = path.join(root, 'x.zip');
+    fs.writeFileSync(
+      zip,
+      rawZip([{ name: 'archive-link', data: 'preexisting', mode: S_IFLNK | 0o777 }]),
+    );
+    await assert.rejects(() => extract(zip, { dir: dest }), /escapes destination/);
+    assert.ok(!fs.existsSync(path.join(dest, 'archive-link')));
+  });
+
   test('link → link (final component) is allowed', async () => {
     const root = scratch();
     const dest = path.join(root, 'd');

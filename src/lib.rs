@@ -514,7 +514,10 @@ fn create_symlink(
 /// on disk or still pending in `link_map` — are followed in-place (so
 /// `Versions/Current/Libraries` works when `Current → A`), with each hop
 /// subject to the same rules: relative only, never ascend above `dest_canon`,
-/// hop count capped. A symlink as the *final* component is left unresolved.
+/// hop count capped. A *pending archive* symlink as the final component is left
+/// unresolved (it is validated by its own independent pass), but a pre-existing
+/// on-disk symlink as the final component is followed through the same bounded,
+/// containment-checked walk — it never gets a separate pass of its own.
 /// On success, returns the resolved path the link will point at.
 fn verify_symlink_target(
     parent: &Path,
@@ -560,21 +563,25 @@ fn verify_symlink_target(
         // Is `cur` a symlink — either pending from this archive, or on disk?
         // The map lookup is fold-keyed so a case/normalisation-mismatched
         // reference still finds the pending hop on APFS/NTFS.
-        let hop: Option<PathBuf> = if let Some(t) = link_map.get(&fold_key(&cur)) {
-            Some(PathBuf::from(t))
+        // Each hop records its origin: a pending ARCHIVE symlink (`from_archive`)
+        // gets its own independent `verify_symlink_target` pass, but a
+        // pre-existing ON-DISK symlink never does — so only the former may take
+        // the final-component shortcut below.
+        let hop: Option<(PathBuf, bool)> = if let Some(t) = link_map.get(&fold_key(&cur)) {
+            Some((PathBuf::from(t), true))
         } else {
             match fs::symlink_metadata(&cur) {
                 Ok(m) if m.file_type().is_symlink() => {
-                    Some(fs::read_link(&cur).map_err(|_| "target is unreadable")?)
+                    Some((fs::read_link(&cur).map_err(|_| "target is unreadable")?, false))
                 }
                 Ok(_) => None,
                 Err(e) if e.kind() == io::ErrorKind::NotFound => None,
                 Err(_) => return Err("target is unreadable"),
             }
         };
-        if let Some(link) = hop {
-            if work.is_empty() {
-                break; // final component; its own target is verified separately
+        if let Some((link, from_archive)) = hop {
+            if work.is_empty() && from_archive {
+                break; // final archive component; its own target is verified separately
             }
             hops += 1;
             if hops > MAX_SYMLINK_HOPS {
