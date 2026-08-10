@@ -38,6 +38,17 @@ and writes are parallelised across `min(cpus, 8)` workers. The original's
 `onEntry`, `defaultDirMode`, and `defaultFileMode` are not supported, since no
 consumer in the `electron` org uses them.
 
+## Fallback extractor
+
+The native binding loads on the first `extract()` call, not at import time.
+If the binding does not load — for example, an OS code-integrity policy such
+as Windows Smart App Control refuses to `dlopen` the prebuilt `.node` file —
+`extract()` uses a pure-JavaScript engine instead and emits a process warning
+that carries the load error. The JavaScript engine enforces the same
+containment rules as the native engine, and CI runs the full extract and
+security test suites against it. Set `EXTRACT_ZIP_FORCE_JS=1` to select the
+JavaScript engine directly.
+
 ## Security
 
 This package is hardened for extracting trusted Electron distribution archives,
