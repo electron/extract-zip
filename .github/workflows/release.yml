@@ -11,6 +11,9 @@ on:
 
 permissions: {}
 
+# Release paths never touch the Actions cache; enforced regardless of per-step settings.
+cache-mode: none
+
 jobs:
   # Reuse the full PR suite as the release gate; the build jobs in it upload
   # the prebuild artifacts that the release job below packages.
