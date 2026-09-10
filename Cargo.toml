@@ -2,7 +2,7 @@
 name = "extract-zip"
 version = "1.0.0"
 edition = "2024"
-license = "BSD-2-Clause"
+license = "MIT"
 publish = false
 
 [lib]

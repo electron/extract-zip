@@ -91,4 +91,4 @@ publishing. No manual version bumps or tags.
 
 ## License
 
-BSD-2-Clause
+MIT
