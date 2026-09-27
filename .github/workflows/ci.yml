@@ -297,3 +297,32 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/build" -w /build node:22-bullseye-slim@sha256:4299d71f4953a7e8cf1d2b988160a7695fbdb8c8f8ef39b46a57ca769dd06dc1 \
             node -e "require('./index.linux-x64-gnu.node'); console.log('loaded index.linux-x64-gnu.node on', process.report.getReport().header.glibcVersionRuntime)"
+
+  required-ci:
+    needs:
+      - test
+      - audit
+      - build
+      - glibc-floor
+      - validate-glibc
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Fail if any required job failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+          AUDIT_RESULT: ${{ needs.audit.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          GLIBC_FLOOR_RESULT: ${{ needs.glibc-floor.result }}
+          VALIDATE_GLIBC_RESULT: ${{ needs.validate-glibc.result }}
+        run: |
+          echo "One or more required jobs did not succeed:"
+          echo "  test: $TEST_RESULT"
+          echo "  audit: $AUDIT_RESULT"
+          echo "  build: $BUILD_RESULT"
+          echo "  glibc-floor: $GLIBC_FLOOR_RESULT"
+          echo "  validate-glibc: $VALIDATE_GLIBC_RESULT"
+          exit 1
+      - name: We are done
+        run: echo "Hello World"
