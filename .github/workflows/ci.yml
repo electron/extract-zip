@@ -108,7 +108,7 @@ jobs:
           # from a version-pinned, checksum-verified rustup-init.
           - name: linux-x64-musl
             os: ubuntu-latest
-            docker: node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920
+            docker: node:22-alpine@sha256:ce8d97f7cfc7c5386421eb932df20a29df99b1a7f469f6157d5c9956702ffadc
             rustup_url: https://static.rust-lang.org/rustup/archive/1.29.0/x86_64-unknown-linux-musl/rustup-init
             rustup_sha256: 9cd3fda5fd293890e36ab271af6a786ee22084b5f6c2b83fd8323cec6f0992c1
             build: |
@@ -118,7 +118,7 @@ jobs:
 
           - name: linux-arm64-musl
             os: ubuntu-24.04-arm
-            docker: node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920
+            docker: node:22-alpine@sha256:ce8d97f7cfc7c5386421eb932df20a29df99b1a7f469f6157d5c9956702ffadc
             rustup_url: https://static.rust-lang.org/rustup/archive/1.29.0/aarch64-unknown-linux-musl/rustup-init
             rustup_sha256: 88761caacddb92cd79b0b1f939f3990ba1997d701a38b3e8dd6746a562f2a759
             build: |
