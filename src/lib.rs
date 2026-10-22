@@ -319,12 +319,15 @@ impl<W: Write> Write for LimitedWriter<W> {
 /// Rejects what `enclosed_name()` doesn't: NUL bytes and Windows reserved
 /// device names (so a Unix-authored zip containing `aux` can't bite on Windows).
 fn extra_name_checks(p: &Path) -> bool {
+    // `enclosed_name()` only ever pushes normal components, so anything else
+    // here means a component that held a separator was split again on join
+    // (zip < 9.0.4 returned `\\?\C:\../b` as `../b`).
     p.components().all(|c| match c {
         Component::Normal(s) => {
             let s = s.to_string_lossy();
             !s.contains('\0') && !is_reserved_windows_name(&s)
         }
-        _ => true,
+        _ => false,
     })
 }
 
@@ -769,6 +772,14 @@ mod tests {
         assert!(!extra_name_checks(Path::new("a\0b")));
         assert!(!extra_name_checks(Path::new("dir/a\0b")));
         assert!(extra_name_checks(Path::new("a0b")));
+    }
+
+    #[test]
+    fn extra_checks_reject_non_normal_components() {
+        assert!(!extra_name_checks(Path::new("../b")));
+        assert!(!extra_name_checks(Path::new("a/../../b")));
+        assert!(!extra_name_checks(Path::new("/b")));
+        assert!(extra_name_checks(Path::new("a/b.txt")));
     }
 
     #[test]
