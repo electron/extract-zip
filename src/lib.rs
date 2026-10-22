@@ -113,7 +113,8 @@ fn run_extract(zip_path: &str, dest: &Path) -> Result<()> {
             .by_index(i)
             .map_err(|e| zerr(format!("failed to read entry {i}: {e}")))?;
 
-        let mode = entry.unix_mode().map(|m| m & MODE_MASK);
+        let raw_mode = archive_mode(entry.system(), entry.external_attributes());
+        let mode = raw_mode.map(|m| m & MODE_MASK);
         let mtime = entry.last_modified().map(dos_to_filetime);
 
         // `enclosed_name()` is the upstream Zip-Slip defence; we layer NUL +
@@ -122,9 +123,13 @@ fn run_extract(zip_path: &str, dest: &Path) -> Result<()> {
             .enclosed_name()
             .filter(|p| extra_name_checks(p.as_path()))
         else {
+            // zip 9's `name()` is fallible (undecodable name bytes); fall back
+            // to a lossy view of the raw bytes so the error still names it.
+            let name = entry
+                .name()
+                .unwrap_or_else(|_| String::from_utf8_lossy(entry.name_raw()));
             return Err(zerr(format!(
-                "refusing to extract '{}': path escapes destination",
-                entry.name()
+                "refusing to extract '{name}': path escapes destination"
             )));
         };
         let out_path = dest_canon.join(rel);
@@ -139,7 +144,7 @@ fn run_extract(zip_path: &str, dest: &Path) -> Result<()> {
             ensure_dir_nofollow(parent, &dest_canon, &mut safe_dirs)?;
         }
 
-        if entry.is_symlink() {
+        if raw_mode.is_some_and(|m| m & S_IFLNK == S_IFLNK) {
             symlinks.push(PendingSymlink {
                 out_path,
                 target: read_symlink_target(&mut entry)?,
@@ -676,6 +681,40 @@ fn zerr(msg: String) -> Error {
     Error::new(Status::GenericFailure, msg)
 }
 
+const S_IFDIR: u32 = 0o040_000;
+const S_IFREG: u32 = 0o100_000;
+const S_IFLNK: u32 = 0o120_000;
+
+/// An entry's raw Unix mode (file type + permission bits), read the way zip 8
+/// did. zip 9's `unix_mode()` ignores the high 16 bits of DOS-host entries and
+/// synthesises 0o664 / 0o775 instead, so a Windows-made archive that does carry
+/// Unix bits would extract group-writable, lose exec bits, and turn symlinks
+/// into regular files.
+fn archive_mode(system: zip::System, external_attributes: u32) -> Option<u32> {
+    if external_attributes == 0 {
+        return None;
+    }
+    let unix_mode = external_attributes >> 16;
+    if unix_mode != 0 {
+        return Some(unix_mode);
+    }
+    match system {
+        zip::System::Unix => Some(unix_mode),
+        zip::System::Dos => {
+            let mut mode = if external_attributes & 0x10 != 0 {
+                S_IFDIR | 0o775
+            } else {
+                S_IFREG | 0o664
+            };
+            if external_attributes & 0x01 != 0 {
+                mode &= !0o222; // DOS read-only bit
+            }
+            Some(mode)
+        }
+        _ => None,
+    }
+}
+
 /// DOS date/time → unix epoch seconds. DOS timestamps are local-time with no
 /// zone; we treat them as UTC (same choice the original `extract-zip` makes).
 fn dos_to_filetime(dt: zip::DateTime) -> FileTime {
@@ -702,6 +741,28 @@ fn dos_to_filetime(dt: zip::DateTime) -> FileTime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn archive_mode_reads_unix_bits_on_dos_host() {
+        use zip::System::{Dos, Unix};
+        assert_eq!(archive_mode(Dos, 0), None);
+        assert_eq!(
+            archive_mode(Dos, (S_IFREG | 0o755) << 16),
+            Some(S_IFREG | 0o755)
+        );
+        assert_eq!(
+            archive_mode(Dos, (S_IFLNK | 0o777) << 16),
+            Some(S_IFLNK | 0o777)
+        );
+        assert_eq!(
+            archive_mode(Unix, (S_IFREG | 0o640) << 16),
+            Some(S_IFREG | 0o640)
+        );
+        // Pure DOS attributes: directory bit, read-only bit.
+        assert_eq!(archive_mode(Dos, 0x20), Some(S_IFREG | 0o664));
+        assert_eq!(archive_mode(Dos, 0x10), Some(S_IFDIR | 0o775));
+        assert_eq!(archive_mode(Dos, 0x21), Some(S_IFREG | 0o444));
+    }
 
     #[test]
     fn extra_checks_reject_nul() {

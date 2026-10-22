@@ -14,7 +14,7 @@ napi-derive = "3"
 # deflate-zlib-ng: SIMD-accelerated inflate, ~2× over the default miniz_oxide.
 # Only Deflate + Store — Electron release zips (and ~all real-world zips) use
 # nothing else; zstd/lzma/bzip2/deflate64 were ~50 KB of dead decoders.
-zip = { version = "8", default-features = false, features = ["deflate-flate2-zlib-ng"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-ng"] }
 filetime = "0.2"
 unicode-normalization = "0.1"
 

@@ -192,7 +192,7 @@ describe('security', () => {
 
   test('entry lying about uncompressed size is caught', async () => {
     const dir = freshOut();
-    await assert.rejects(() => extract(F.liar, { dir }), /exceeded|zip bomb/i);
+    await assert.rejects(() => extract(F.liar, { dir }), /exceeded|zip bomb|larger than its declared/i);
   });
 });
 
