@@ -178,6 +178,11 @@ fixture('slip-mid', (f) => fs.writeFileSync(f, rawZip([{ name: 'a/../../evil.txt
 fixture('slip-backslash', (f) =>
   fs.writeFileSync(f, rawZip([{ name: 'a\\..\\..\\evil.txt', data: 'x' }])),
 );
+// Inside a verbatim (`\\?\`) prefix `/` is not a separator, so zip < 9.0.4's
+// `enclosed_name()` returned `../evil.txt` as one "normal" component.
+fixture('slip-verbatim', (f) =>
+  fs.writeFileSync(f, rawZip([{ name: '\\\\?\\C:\\../evil.txt', data: 'x' }])),
+);
 fixture('absolute', (f) => fs.writeFileSync(f, rawZip([{ name: '/rooted.txt', data: 'rooted\n' }])));
 fixture('dotdot-inside', (f) =>
   fs.writeFileSync(f, rawZip([{ name: 'a/b/../c.txt', data: 'ok' }])),

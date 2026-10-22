@@ -165,6 +165,12 @@ describe('security', () => {
     await assert.rejects(() => extract(F['slip-mid'], { dir }), /escapes destination/);
   });
 
+  test('zip-slip via `..` inside a verbatim-prefix component is rejected', async () => {
+    const dir = freshOut();
+    await assert.rejects(() => extract(F['slip-verbatim'], { dir }), /escapes destination/);
+    assert.ok(!fs.existsSync(path.join(OUT, 'evil.txt')));
+  });
+
   test('backslash separators cannot traverse', async () => {
     const dir = freshOut();
     // Either rejected, or extracted as a literal filename — never escapes.
@@ -192,7 +198,7 @@ describe('security', () => {
 
   test('entry lying about uncompressed size is caught', async () => {
     const dir = freshOut();
-    await assert.rejects(() => extract(F.liar, { dir }), /exceeded|zip bomb/i);
+    await assert.rejects(() => extract(F.liar, { dir }), /exceeded|zip bomb|larger than its declared/i);
   });
 });
 
