@@ -3,7 +3,7 @@ updates:
 - package-ecosystem: "cargo"
   directory: "/"
   schedule:
-    interval: "monthly"
+    interval: "daily"
   cooldown:
     default-days: 7
   # semantic-release only cuts a release for fix/feat commits, and Dependabot's
