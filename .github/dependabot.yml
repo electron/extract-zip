@@ -6,6 +6,11 @@ updates:
     interval: "monthly"
   cooldown:
     default-days: 7
+  # semantic-release only cuts a release for fix/feat commits, and Dependabot's
+  # default "chore(deps):" title would never ship a rebuilt .node binary to npm.
+  commit-message:
+    prefix: "fix"
+    include: "scope"
   groups:
     # Creates a separate PR for each non-security-related major update.
     major-version-updates:
