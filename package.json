@@ -34,8 +34,8 @@
     ]
   },
   "scripts": {
-    "build": "napi build --platform --release --esm --output-dir . --js binding.js --dts binding.d.ts && node scripts/strip-binding-fallbacks.js",
-    "build:debug": "napi build --platform --esm --output-dir . --js binding.js --dts binding.d.ts && node scripts/strip-binding-fallbacks.js",
+    "build": "napi build --platform --release --esm --output-dir . --js binding.js --dts binding.d.ts && node scripts/strip-binding-fallbacks.js && node scripts/propagate-binding-load-errors.js",
+    "build:debug": "napi build --platform --esm --output-dir . --js binding.js --dts binding.d.ts && node scripts/strip-binding-fallbacks.js && node scripts/propagate-binding-load-errors.js",
     "universal": "napi universalize --output-dir .",
     "test": "node --test test/*.test.js",
     "bench": "node bench/bench.js",
