@@ -236,7 +236,7 @@ fn run_extract(zip_path: &str, dest: &Path) -> Result<()> {
         }
         set_permissions(&path, mode);
         if let Some(t) = mtime {
-            let _ = filetime::set_file_mtime(&path, t);
+            let _ = fs::set_times(&path, fs::FileTimes::new().set_modified(t.into()));
         }
     }
 
@@ -284,7 +284,7 @@ fn write_one(archive: &mut Archive, f: &PendingFile) -> Result<()> {
     }
     if let Some(t) = f.mtime {
         // Set via the open handle: no path re-resolution, no symlink follow.
-        let _ = filetime::set_file_handle_times(&fh, None, Some(t));
+        let _ = fh.set_times(fs::FileTimes::new().set_modified(t.into()));
     }
     Ok(())
 }
